@@ -79,7 +79,8 @@ int main (int argc, char *argv[]) {
 	// 1000 data points request
 
 	else if (t == -1) {
-		ofstream file("x1.csv");
+		ofstream file;
+		file.open("./received/x1.csv");
 		if (!file.is_open()) throw std::invalid_argument("Cannot open file"); //check if file opened corrctly
 		for (size_t i = 0; i < 1000; i++) {
 			file << 0.004*i;
