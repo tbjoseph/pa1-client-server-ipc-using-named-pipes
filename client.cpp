@@ -141,7 +141,7 @@ int main (int argc, char *argv[]) {
 			chan.cwrite(buf2, len);
 			chan.cread(buf3, remainder);
 
-			for (int j = 0; j < m_; j++) file << buf3[j];
+			for (int j = 0; j < remainder; j++) file << buf3[j];
 		}
 
 		delete[] buf3;
