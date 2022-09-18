@@ -6,11 +6,13 @@
     Date: 2/8/20
 	
 	Please include your Name, UIN, and the date below
-	Name:
-	UIN:
-	Date:
+	Name: Timothy Joseph
+	UIN: 330000565
+	Date: 9/17/2022
 */
 #include "common.h"
+#include <sys/wait.h>
+
 #include "FIFORequestChannel.h"
 
 using namespace std;
@@ -18,9 +20,10 @@ using namespace std;
 
 int main (int argc, char *argv[]) {
 	int opt;
-	int p = 1;
-	double t = 0.0;
-	int e = 1;
+	int p = -1;
+	double t = -1;
+	int e = -1;
+	int m_ = MAX_MESSAGE;
 	
 	string filename = "";
 	while ((opt = getopt(argc, argv, "p:t:e:f:")) != -1) {
@@ -37,21 +40,73 @@ int main (int argc, char *argv[]) {
 			case 'f':
 				filename = optarg;
 				break;
+			case 'm':
+				m_ = atoi (optarg);
+				break;
 		}
 	}
 
+	//child process for server
+	int fork_ = fork();
+	if (fork_ == 0)
+	{
+		//Convert m_ from int to to c string
+		std::string _m = std::to_string(m_);
+		char* __m = new char[_m.size()];
+		for (size_t i = 0; i < _m.size(); i++) {
+			__m[i] = _m[i];
+		}
+
+		//run server
+		char *const args[] = {(char*)"./server", (char*)"-m", __m, NULL};
+		execvp(args[0], args);
+		return 0;
+	}
+
     FIFORequestChannel chan("control", FIFORequestChannel::CLIENT_SIDE);
-	
-	// example data point request
-    char buf[MAX_MESSAGE]; // 256
-    datamsg x(1, 0.0, 1);
-	
-	memcpy(buf, &x, sizeof(datamsg));
-	chan.cwrite(buf, sizeof(datamsg)); // question
+	char buf[MAX_MESSAGE]; // 256
 	double reply;
-	chan.cread(&reply, sizeof(double)); //answer
-	cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
 	
+	// data point request
+	if (t != -1) {
+		datamsg x(p, t, e); 
+		memcpy(buf, &x, sizeof(datamsg));
+		chan.cwrite(buf, sizeof(datamsg)); // question
+		chan.cread(&reply, sizeof(double)); //answer
+		cout << "For person " << p << ", at time " << t << ", the value of ecg " << e << " is " << reply << endl;
+	}
+
+	// 1000 data points request
+
+	else if (t == -1) {
+		ofstream file("x1.csv");
+		if (!file.is_open()) throw std::invalid_argument("Cannot open file"); //check if file opened corrctly
+		for (size_t i = 0; i < 1000; i++) {
+			file << 0.004*i;
+			for (size_t j = 1; j < 3; j++)
+			{
+				datamsg x(p, 0.004*i, j);
+				memcpy(buf, &x, sizeof(datamsg));
+				chan.cwrite(buf, sizeof(datamsg)); // question
+				chan.cread(&reply, sizeof(double)); //answer
+				file << "," << reply;
+			}
+			file << endl;
+		}
+		/*
+		for (size_t i = 0; i < 5; i++) {
+			cout << 0.004*i << endl;
+			for (size_t j = 0; i < 2; j++)
+			{
+				datamsg x(p, 0.004*i, j);
+				memcpy(buf, &x, sizeof(datamsg));
+				chan.cwrite(buf, sizeof(datamsg)); // question
+				chan.cread(&reply, sizeof(double)); //answer
+			}
+		}*/
+	}
+
+
     // sending a non-sense message, you need to change this
 	filemsg fm(0, 0);
 	string fname = "teslkansdlkjflasjdf.dat";
