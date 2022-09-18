@@ -23,7 +23,7 @@ int main (int argc, char *argv[]) {
 	int p = -1;
 	double t = -1;
 	int e = -1;
-	int m_ = MAX_MESSAGE;
+	int m_ = MAX_MESSAGE; // 256 bytes
 	
 	string filename = "";
 	while ((opt = getopt(argc, argv, "p:t:e:f:")) != -1) {
@@ -64,7 +64,7 @@ int main (int argc, char *argv[]) {
 	}
 
     FIFORequestChannel chan("control", FIFORequestChannel::CLIENT_SIDE);
-	char buf[MAX_MESSAGE]; // 256
+	char buf[MAX_MESSAGE];
 	double reply;
 	
 	// data point request
@@ -77,8 +77,7 @@ int main (int argc, char *argv[]) {
 	}
 
 	// 1000 data points request
-
-	else if (t == -1) {
+	else if (p != -1) {
 		ofstream file;
 		file.open("./received/x1.csv");
 		if (!file.is_open()) throw std::invalid_argument("Cannot open file"); //check if file opened corrctly
@@ -94,31 +93,62 @@ int main (int argc, char *argv[]) {
 			}
 			file << endl;
 		}
-		/*
-		for (size_t i = 0; i < 5; i++) {
-			cout << 0.004*i << endl;
-			for (size_t j = 0; i < 2; j++)
-			{
-				datamsg x(p, 0.004*i, j);
-				memcpy(buf, &x, sizeof(datamsg));
-				chan.cwrite(buf, sizeof(datamsg)); // question
-				chan.cread(&reply, sizeof(double)); //answer
-			}
-		}*/
 	}
 
 
-    // sending a non-sense message, you need to change this
-	filemsg fm(0, 0);
-	string fname = "teslkansdlkjflasjdf.dat";
+    // file request
 	
-	int len = sizeof(filemsg) + (fname.size() + 1);
-	char* buf2 = new char[len];
-	memcpy(buf2, &fm, sizeof(filemsg));
-	strcpy(buf2 + sizeof(filemsg), fname.c_str());
-	chan.cwrite(buf2, len);  // I want the file length;
+	//get file size from server
+	else {
+		filemsg fm(0, 0);
+		string fname = filename;
 
-	delete[] buf2;
+		int len = sizeof(filemsg) + (fname.size() + 1);
+		char* buf2 = new char[len];
+		memcpy(buf2, &fm, sizeof(filemsg));
+		strcpy(buf2 + sizeof(filemsg), fname.c_str());
+
+		chan.cwrite(buf2, len);  // I want the file length;
+		int64_t filesize;
+		chan.cread(&filesize, sizeof(int64_t));
+
+		cout << filesize << endl;
+
+		char* buf3 = new char[m_];
+		filemsg* file_req = (filemsg*)buf2;
+		ofstream file;
+		file.open("./received/" + filename);
+		if (!file.is_open()) throw std::invalid_argument("Cannot open file"); //check if file opened corrctly
+		int64_t i;
+
+
+		//get file contents
+		for (i = 0; i < filesize/m_; i++) {
+			file_req->offset = m_ * i;
+			file_req->length = m_;
+			chan.cwrite(buf2, len);
+			chan.cread(buf3, m_);
+
+			//write into file
+			for (int j = 0; j < m_; j++) file << buf3[j];
+		
+		}
+
+		int remainder = filesize % m_;
+		if (remainder > 0) {
+			file_req->offset = m_ * i;
+			file_req->length = remainder;
+			chan.cwrite(buf2, len);
+			chan.cread(buf3, remainder);
+
+			for (int j = 0; j < m_; j++) file << buf3[j];
+		}
+
+		delete[] buf3;
+		delete[] buf2;
+
+	}
+
 	
 	// closing the channel    
     MESSAGE_TYPE m = QUIT_MSG;
