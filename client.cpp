@@ -24,9 +24,11 @@ int main (int argc, char *argv[]) {
 	double t = -1;
 	int e = -1;
 	int m_ = MAX_MESSAGE; // 256 bytes
+	bool c = false;
+	vector<FIFORequestChannel*> channels;
 	
 	string filename = "";
-	while ((opt = getopt(argc, argv, "p:t:e:f:")) != -1) {
+	while ((opt = getopt(argc, argv, "p:t:e:f:c")) != -1) {
 		switch (opt) {
 			case 'p':
 				p = atoi (optarg);
@@ -42,6 +44,9 @@ int main (int argc, char *argv[]) {
 				break;
 			case 'm':
 				m_ = atoi (optarg);
+				break;
+			case 'c':
+				c = true;
 				break;
 		}
 	}
@@ -63,9 +68,22 @@ int main (int argc, char *argv[]) {
 		return 0;
 	}
 
-    FIFORequestChannel chan("control", FIFORequestChannel::CLIENT_SIDE);
+    FIFORequestChannel control_chan("control", FIFORequestChannel::CLIENT_SIDE);
+	channels.push_back(&control_chan);
+	
 	char buf[MAX_MESSAGE];
 	double reply;
+
+	if (c) {
+		MESSAGE_TYPE nc = NEWCHANNEL_MSG;
+    	control_chan.cwrite(&nc, sizeof(MESSAGE_TYPE));
+		char buf0[MAX_MESSAGE];
+		control_chan.cread(buf0, MAX_MESSAGE);
+		FIFORequestChannel* chan0 = new FIFORequestChannel(buf0, FIFORequestChannel::CLIENT_SIDE);
+		channels.push_back(chan0);
+	}
+
+	FIFORequestChannel chan = *(channels.back());
 	
 	// data point request
 	if (t != -1) {
@@ -97,8 +115,6 @@ int main (int argc, char *argv[]) {
 
 
     // file request
-	
-	//get file size from server
 	else {
 		filemsg fm(0, 0);
 		string fname = filename;
@@ -148,7 +164,13 @@ int main (int argc, char *argv[]) {
 		delete[] buf2;
 
 	}
-
+	
+	if (c) {
+		MESSAGE_TYPE mm = QUIT_MSG;
+    	chan.cwrite(&mm, sizeof(MESSAGE_TYPE));
+		delete channels.back();
+		chan = *(channels.at(0));
+	}
 	
 	// closing the channel    
     MESSAGE_TYPE m = QUIT_MSG;
